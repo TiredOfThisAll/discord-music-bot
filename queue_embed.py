@@ -6,10 +6,10 @@ page_number = 1
 
 
 class PaginationButtons(discord.ui.View):
-    def __init__(self, music, urls, timeout: float | None = 180):
+    def __init__(self, queue_info, timeout: float | None = 180):
         super().__init__(timeout=timeout)
-        self.music = music
-        self.urls = urls
+        self.music = queue_info["extracted_video_info"]
+        self.urls = queue_info['video_urls']
 
     @discord.ui.button(label="<", style=discord.ButtonStyle.blurple, disabled=True, custom_id="left_page_button")
     async def left_page_button_callback(self, interaction, button):
