@@ -6,8 +6,7 @@ import random
 import youtube_functions
 from queue_embed import PaginationButtons, queue_embed
 
-music = []
-urls = []
+queue_info = {}
 current_number_of_songs = 0
 ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
 
@@ -32,7 +31,23 @@ async def leave(context):
 
 @bot.event
 async def on_ready():
+    try:
+        with open("guilds.txt") as guilds_file:
+            guilds = guilds_file.read().split(";")[:-1]
+        for guild in guilds:
+            queue_info[guild] = {"extracted_video_info": [], "video_urls": []}
+    except FileNotFoundError:
+        open("guilds.txt", "x")
     print(f'Bot connected as {bot.user}')
+
+
+@bot.event
+async def on_guild_join(guild):
+    with open("guilds.txt", "r+") as guilds_file:
+        guilds = guilds_file.read()
+        if str(guild.id) not in guilds:
+            guilds_file.write(f"{guild.id};")
+    queue_info[f"{guild.id}"] = {"extracted_video_info": [], "video_urls": []}
 
 
 @bot.command(name='sync')
@@ -49,7 +64,7 @@ async def sync(ctx):
 
 @bot.hybrid_command(name="play", description="play some stuff, you can use urls or search on youtube by video title")
 async def play(ctx, *, url):
-    global current_number_of_songs, urls, music
+    global current_number_of_songs, queue_info
     new_queue_created = False
 
     # Begging discord to continue interaction of slash command if we are too slow
@@ -58,40 +73,46 @@ async def play(ctx, *, url):
     if not ctx.author.voice:
         return await ctx.send('You are not connected to a voice channel')
     
-    current_number_of_songs = len(urls) + len(music)
+    current_number_of_songs = len(queue_info[f"{ctx.guild.id}"]["extracted_video_info"]) + len(queue_info[f"{ctx.guild.id}"]["video_urls"])
 
-    await youtube_functions.search_youtube(url, urls)
+    await youtube_functions.search_youtube(url, queue_info[f"{ctx.guild.id}"])
 
-    if not music and urls:
-        await youtube_functions.extract_full_info(urls, music)
-        if music:
+    if not queue_info[f"{ctx.guild.id}"]["extracted_video_info"] and queue_info[f"{ctx.guild.id}"]["video_urls"]:
+        await youtube_functions.extract_full_info(queue_info[f"{ctx.guild.id}"])
+        if queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
             new_queue_created = True
         else:
             ctx.send("No available videos with this url")
             return
 
-    if music:
+    if queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
         # connect the bot if it has not been connected to voice channel
         voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
         if not voice_client:
             voice_client = await join(ctx)
+        
         if new_queue_created:
-            await ctx.send(f"{len(music) + len(urls)} song(s) in queue")
+            await ctx.send(f"{len(queue_info[f'{ctx.guild.id}']['extracted_video_info']) + len(queue_info[f'{ctx.guild.id}']['video_urls'])} song(s) in queue")
         else:
-            await ctx.send(f"{abs(current_number_of_songs - len(urls) - len(music))} song(s) were added to the queue")
+            await ctx.send(f"{abs(current_number_of_songs - len(queue_info[f'{ctx.guild.id}']['video_urls']) - len(queue_info[f'{ctx.guild.id}']['extracted_video_info']))} song(s) were added to the queue")
             return
-        while music:
-            await ctx.send(f"Playing {music[0]['title']}")
+        
+        while voice_client.is_playing():
+            return
+        
+    while queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
+        await ctx.send(f"Playing {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
 
-            voice_client.play(discord.FFmpegPCMAudio(music[0]["link"], **ffmpeg_options))
-            await youtube_functions.extract_full_info(urls, music)
+        voice_client.play(discord.FFmpegPCMAudio(queue_info[f"{ctx.guild.id}"]["extracted_video_info"][0]["link"], **ffmpeg_options))
 
-            while voice_client.is_playing() or voice_client.is_paused():
-                await asyncio.sleep(1)
-            if music:
-                music.pop(0)
+        while voice_client.is_playing() or voice_client.is_paused():
+            if len(queue_info[f"{ctx.guild.id}"]["extracted_video_info"]) < 2 and queue_info[f"{ctx.guild.id}"]["video_urls"]:
+                await youtube_functions.extract_full_info(queue_info[f"{ctx.guild.id}"])
+            await asyncio.sleep(1)
+        if queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
+            queue_info[f"{ctx.guild.id}"]["extracted_video_info"].pop(0)
 
-        await leave(voice_client)
+    await leave(voice_client)
 
 
 @bot.hybrid_command(name="skip", description="skip current song")
@@ -100,14 +121,14 @@ async def skip(ctx):
     if not voice_client:
         await ctx.send("Nothing is playing right now")
         return
-    await ctx.send(f"Skipped {music[0]['title']}")
+    await ctx.send(f"Skipped {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
     voice_client.stop()
 
 
 @bot.hybrid_command(name="stop", description="clear the queue and stop playing")
 async def stop(ctx):
-    urls.clear()
-    music.clear()
+    queue_info[f"{ctx.guild.id}"]["extracted_video_info"].clear()
+    queue_info[f"{ctx.guild.id}"]["video_urls"].clear()
     voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice_client:
         await ctx.send("Nothing is playing right now")
@@ -124,7 +145,7 @@ async def pause(ctx):
         await ctx.send("Nothing is playing right now")
         return
     voice_client.pause()
-    await ctx.send(f"Paused {music[0]['title']}")
+    await ctx.send(f"Paused {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
 
 
 @bot.hybrid_command(name="resume", description="resume current song")
@@ -134,26 +155,26 @@ async def resume(ctx):
         await ctx.send("Nothing is playing right now")
         return
     voice_client.resume()
-    await ctx.send(f"Resumed {music[0]['title']}")
+    await ctx.send(f"Resumed {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
 
 
 @bot.hybrid_command(name="queue", description="show queue")
 async def queue(ctx):
-    view = PaginationButtons(music, urls)
-    if not music and not urls:
+    view = PaginationButtons(queue_info[f"{ctx.guild.id}"])
+    if not queue_info[f'{ctx.guild.id}']['extracted_video_info'] and not queue_info[f'{ctx.guild.id}']['video_urls']:
         await ctx.send("Nothing is playing right now")
         return
-    if len(urls) < 11:
+    if len(queue_info[f'{ctx.guild.id}']['video_urls']) < 11:
         view = None
-    await ctx.send(view=view, embed=await queue_embed(music, urls))
+    await ctx.send(view=view, embed=await queue_embed(queue_info[f"{ctx.guild.id}"]['extracted_video_info'], queue_info[f'{ctx.guild.id}']["video_urls"]))
 
 
 @bot.hybrid_command(name="shuffle", with_app_command=True, description="shuffle the queue")
 async def shuffle(ctx):
-    if not music and not urls:
+    if not queue_info[f"{ctx.guild.id}"]["extracted_video_info"] and not queue_info[f"{ctx.guild.id}"]["video_urls"]:
         await ctx.send("Queue is empty right now")
         return
-    random.shuffle(urls)
+    random.shuffle(queue_info[f"{ctx.guild.id}"]["video_urls"])
     await ctx.send("Successfully shuffled the queue")
 
 
