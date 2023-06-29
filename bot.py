@@ -35,7 +35,7 @@ async def on_ready():
         with open("guilds.txt") as guilds_file:
             guilds = guilds_file.read().split(";")[:-1]
         for guild in guilds:
-            queue_info[guild] = {"extracted_video_info": [], "video_urls": []}
+            queue_info[guild] = {"extracted_video_info": [], "video_urls": [], "repeat_current_song": False}
     except FileNotFoundError:
         open("guilds.txt", "x")
     print(f'Bot connected as {bot.user}')
@@ -63,9 +63,11 @@ async def sync(ctx):
 
 
 @bot.hybrid_command(name="play", description="play some stuff, you can use urls or search on youtube by video title")
-async def play(ctx, *, url):
+async def play(ctx, *, url, queue_imported=False):
     global current_number_of_songs, queue_info
     new_queue_created = False
+
+    queue = queue_info[f"{ctx.guild.id}"]
 
     # Begging discord to continue interaction of slash command if we are too slow
     await ctx.defer()
@@ -73,44 +75,48 @@ async def play(ctx, *, url):
     if not ctx.author.voice:
         return await ctx.send('You are not connected to a voice channel')
     
-    current_number_of_songs = len(queue_info[f"{ctx.guild.id}"]["extracted_video_info"]) + len(queue_info[f"{ctx.guild.id}"]["video_urls"])
+    queue_size = len(queue["extracted_video_info"]) + len(queue["video_urls"])
 
     await youtube_functions.search_youtube(url, queue_info[f"{ctx.guild.id}"])
 
-    if not queue_info[f"{ctx.guild.id}"]["extracted_video_info"] and queue_info[f"{ctx.guild.id}"]["video_urls"]:
-        await youtube_functions.extract_full_info(queue_info[f"{ctx.guild.id}"])
-        if queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
+    if not queue["extracted_video_info"] and queue["video_urls"]:
+        await youtube_functions.extract_full_info(queue)
+        if queue["extracted_video_info"]:
             new_queue_created = True
         else:
             ctx.send("No available videos with this url")
             return
 
-    if queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
+    if queue["extracted_video_info"]:
         # connect the bot if it has not been connected to voice channel
         voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
         if not voice_client:
             voice_client = await join(ctx)
         
+        new_queue_size = len(queue["extracted_video_info"]) + len(queue["video_urls"])
+        
         if new_queue_created:
-            await ctx.send(f"{len(queue_info[f'{ctx.guild.id}']['extracted_video_info']) + len(queue_info[f'{ctx.guild.id}']['video_urls'])} song(s) in queue")
+            await ctx.send(f'{new_queue_size} song(s) in queue')
         else:
-            await ctx.send(f"{abs(current_number_of_songs - len(queue_info[f'{ctx.guild.id}']['video_urls']) - len(queue_info[f'{ctx.guild.id}']['extracted_video_info']))} song(s) were added to the queue")
+            await ctx.send(f"{new_queue_size - queue_size} song(s) were added to the queue")
+        
+        if voice_client.is_playing():
             return
         
-        while voice_client.is_playing():
-            return
-        
-    while queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
-        await ctx.send(f"Playing {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
+    while queue["extracted_video_info"]:
+        response = f'Playing {queue["extracted_video_info"][0]["title"]}'
+        response = response if not queue_imported else "Queue was succesfully imported\n" + response
+        queue_imported = False
+        await ctx.send(response)
 
-        voice_client.play(discord.FFmpegPCMAudio(queue_info[f"{ctx.guild.id}"]["extracted_video_info"][0]["link"], **ffmpeg_options))
+        voice_client.play(discord.FFmpegPCMAudio(queue["extracted_video_info"][0]["link"], **ffmpeg_options))
 
         while voice_client.is_playing() or voice_client.is_paused():
-            if len(queue_info[f"{ctx.guild.id}"]["extracted_video_info"]) < 2 and queue_info[f"{ctx.guild.id}"]["video_urls"]:
-                await youtube_functions.extract_full_info(queue_info[f"{ctx.guild.id}"])
+            if len(queue["extracted_video_info"]) < 2 and queue["video_urls"]:
+                await youtube_functions.extract_full_info(queue)
             await asyncio.sleep(1)
-        if queue_info[f"{ctx.guild.id}"]["extracted_video_info"]:
-            queue_info[f"{ctx.guild.id}"]["extracted_video_info"].pop(0)
+        if queue["extracted_video_info"] and not queue["repeat_current_song"]:
+            queue["extracted_video_info"].pop(0)
 
     await leave(voice_client)
 
@@ -127,8 +133,9 @@ async def skip(ctx):
 
 @bot.hybrid_command(name="stop", description="clear the queue and stop playing")
 async def stop(ctx):
-    queue_info[f"{ctx.guild.id}"]["extracted_video_info"].clear()
-    queue_info[f"{ctx.guild.id}"]["video_urls"].clear()
+    queue = queue_info[f"{ctx.guild.id}"]
+    queue["extracted_video_info"].clear()
+    queue["video_urls"].clear()
     voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice_client:
         await ctx.send("Nothing is playing right now")
@@ -140,42 +147,100 @@ async def stop(ctx):
 
 @bot.hybrid_command(name="pause", description="pause current song")
 async def pause(ctx):
+    queue = queue_info[f"{ctx.guild.id}"]
     voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice_client:
         await ctx.send("Nothing is playing right now")
         return
     voice_client.pause()
-    await ctx.send(f"Paused {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
+    await ctx.send(f"Paused {queue['extracted_video_info'][0]['title']}")
 
 
 @bot.hybrid_command(name="resume", description="resume current song")
 async def resume(ctx):
+    queue = queue_info[f"{ctx.guild.id}"]
     voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice_client:
         await ctx.send("Nothing is playing right now")
         return
     voice_client.resume()
-    await ctx.send(f"Resumed {queue_info[f'{ctx.guild.id}']['extracted_video_info'][0]['title']}")
+    await ctx.send(f"Resumed {queue['extracted_video_info'][0]['title']}")
 
 
 @bot.hybrid_command(name="queue", description="show queue")
 async def queue(ctx):
-    view = PaginationButtons(queue_info[f"{ctx.guild.id}"])
-    if not queue_info[f'{ctx.guild.id}']['extracted_video_info'] and not queue_info[f'{ctx.guild.id}']['video_urls']:
+    queue = queue_info[f"{ctx.guild.id}"]
+    view = PaginationButtons(queue)
+    if not queue['extracted_video_info'] and not queue['video_urls']:
         await ctx.send("Nothing is playing right now")
         return
-    if len(queue_info[f'{ctx.guild.id}']['video_urls']) < 11:
+    if len(queue['video_urls']) < 11:
         view = None
-    await ctx.send(view=view, embed=await queue_embed(queue_info[f"{ctx.guild.id}"]['extracted_video_info'], queue_info[f'{ctx.guild.id}']["video_urls"]))
+    await ctx.send(view=view, embed=await queue_embed(queue['extracted_video_info'], queue["video_urls"]))
 
 
 @bot.hybrid_command(name="shuffle", with_app_command=True, description="shuffle the queue")
 async def shuffle(ctx):
-    if not queue_info[f"{ctx.guild.id}"]["extracted_video_info"] and not queue_info[f"{ctx.guild.id}"]["video_urls"]:
+    queue = queue_info[f"{ctx.guild.id}"]
+    if not queue["extracted_video_info"] and not queue["video_urls"]:
         await ctx.send("Queue is empty right now")
         return
-    random.shuffle(queue_info[f"{ctx.guild.id}"]["video_urls"])
+    random.shuffle(queue["video_urls"])
     await ctx.send("Successfully shuffled the queue")
+
+
+@bot.hybrid_command(name="save_queue", description="Create a dump file of current queue")
+async def save_queue(ctx):
+    queue = queue_info[f"{ctx.guild.id}"]
+
+    if not queue["extracted_video_info"] and not queue["video_urls"]:
+        await ctx.send("Queue is empty right now")
+        return
+    
+    video_urls_list = [f'{video_info["webpage_url"]}\n{video_info["title"]}' for video_info in queue["extracted_video_info"]]
+    if queue["video_urls"]:
+        video_urls_list += [f'{video_info["url"]}\n{video_info["title"]}' for video_info in queue["video_urls"]]
+    
+    with open(f"{ctx.guild.id}_queue_dump.txt", "w", encoding="utf-8") as queue_dump_file:
+        queue_dump_file.write("\n".join(video_urls_list))
+
+    await ctx.send("Queue dump file was successfully created")
+
+
+@bot.hybrid_command(name="load_queue", description="Import queue from dump file")
+async def load_queue(ctx):
+    global queue_info
+    queue = queue_info[f"{ctx.guild.id}"]
+    if not ctx.author.voice:
+        return await ctx.send('You are not connected to a voice channel')
+    
+    try:
+        with open(f"{ctx.guild.id}_queue_dump.txt", "r", encoding="utf-8") as queue_dump_file:
+            queue_dump_list = queue_dump_file.read().split("\n")
+        
+        if len(queue_dump_list) > 1:
+            for i in range(0, len(queue_dump_list)-2, 2):
+                queue["video_urls"].append({"url": queue_dump_list[i], "title": queue_dump_list[i+1]})
+        
+        await play(ctx, url=queue_dump_list[-2], queue_imported=True)
+
+    except FileNotFoundError:
+        await ctx.send("No queue was saved for this server")
+
+
+@bot.hybrid_command(name="repeat", description="Repeat current song\nuse the command again to stop the music from repeating")
+async def repeat(ctx):
+    global queue_info
+    queue = queue_info[f"{ctx.guild.id}"]
+    if not queue["extracted_video_info"]:
+        await ctx.send("Nothing is playing right now")
+        return
+    if queue["repeat_current_song"]:
+        queue["repeat_current_song"] = False
+        await ctx.send(f'{queue["extracted_video_info"][0]["title"]} is no longer on repeat')
+        return
+    queue["repeat_current_song"] = True
+    await ctx.send(f'{queue["extracted_video_info"][0]["title"]} is on repeat now')
 
 
 # block all DMs
