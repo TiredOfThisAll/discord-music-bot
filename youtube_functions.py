@@ -16,7 +16,7 @@ async def extract_full_info(queue_info):
             while not info and queue_info["video_urls"]:
                 info = ydl.extract_info(queue_info["video_urls"][0]["url"], download=False)
                 queue_info["video_urls"].pop(0)
-            queue_info["extracted_video_info"].append({"title": info["title"], "link": info['url'], "image": info["thumbnail"]})
+            queue_info["extracted_video_info"].append({"title": info["title"], "link": info['url'], "image": info["thumbnail"], "webpage_url": info["webpage_url"]})
         return queue_info
 
 
