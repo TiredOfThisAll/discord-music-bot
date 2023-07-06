@@ -16,7 +16,7 @@ async def extract_full_info(queue_info):
             while not info and queue_info["video_urls"]:
                 info = ydl.extract_info(queue_info["video_urls"][0]["url"], download=False)
                 queue_info["video_urls"].pop(0)
-            queue_info["extracted_video_info"].append({"title": info["title"], "link": info['url'], "image": info["thumbnail"], "webpage_url": info["webpage_url"]})
+            queue_info["extracted_video_info"].append({"title": info["title"], "link": info['url'], "image": info["thumbnail"], "webpage_url": info["webpage_url"], "duration": info["duration"]})
         return queue_info
 
 
@@ -47,7 +47,7 @@ async def search_youtube(query, queue_info):
 
         if entries:
             for entry in entries:
-                queue_info["video_urls"].append({"url": entry["url"], "title": entry["title"]})
+                queue_info["video_urls"].append({"url": entry["url"], "title": entry["title"], "duration": entry["duration"]})
         else:
-            queue_info["video_urls"].append({"url": info["url"], "title": info["title"]})
+            queue_info["video_urls"].append({"url": info["url"], "title": info["title"], "duration": info["duration"]})
         return queue_info

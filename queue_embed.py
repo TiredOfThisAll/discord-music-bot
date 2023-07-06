@@ -36,7 +36,7 @@ class PaginationButtons(discord.ui.View):
         await interaction.response.edit_message(view=self, embed=await queue_embed(self.music, self.urls, self.page_number))
 
 
-async def queue_embed(music, urls, page_number=1):
+async def queue_embed(music, urls, page_number=1, time_string='0:0', estimated_time='0:0'):
     page_count = ceil(len(urls) / 10)
     embed = discord.Embed(title=f"Queue page {page_number} of {max(1, page_count)}",
                           colour=discord.Colour.blurple())
@@ -44,6 +44,8 @@ async def queue_embed(music, urls, page_number=1):
     if music:
         None if "image" not in list(music[0]) else embed.set_thumbnail(url=music[0]["image"])
         embed.add_field(name="Current song", value=f"{music[0]['title']}", inline=False)
+        embed.add_field(name="Timebar", value=time_string)
+        embed.add_field(name="Estimated time playing: ", value=estimated_time)
         None if len(music) <= 1 else embed.add_field(name="Next song", value=f"{music[1]['title']}", inline=False)
 
     None if not urls else embed.add_field(name="", value=f"```{get_queue_page(page_number, urls)}```", inline=False)

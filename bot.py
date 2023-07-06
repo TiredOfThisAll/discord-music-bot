@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import asyncio
 import random
+import time
+from datetime import timedelta
 
 import youtube_functions
 from queue_embed import PaginationButtons, queue_embed
@@ -111,6 +113,8 @@ async def play(ctx, *, url, queue_imported=False):
 
         voice_client.play(discord.FFmpegPCMAudio(queue["extracted_video_info"][0]["link"], **ffmpeg_options))
 
+        queue["extracted_video_info"][0]["start_time"] = time.time()
+
         while voice_client.is_playing() or voice_client.is_paused():
             if len(queue["extracted_video_info"]) < 2 and queue["video_urls"]:
                 await youtube_functions.extract_full_info(queue)
@@ -171,12 +175,31 @@ async def resume(ctx):
 async def queue(ctx):
     queue = queue_info[f"{ctx.guild.id}"]
     view = PaginationButtons(queue)
+
+    song_cur_time = timedelta(seconds=int(time.time() - queue["extracted_video_info"][0]["start_time"]))
+
+    song_duration = timedelta(seconds=int(queue["extracted_video_info"][0]["duration"]))
+
+    time_string = f"[{song_cur_time}/{song_duration}]"
+
+    estimated_time = sum([x["duration"] for x in queue["extracted_video_info"]])
+    estimated_time += sum([x["duration"] for x in queue["video_urls"] if x["duration"]])
+    estimated_time = timedelta(seconds=estimated_time)
+
     if not queue['extracted_video_info'] and not queue['video_urls']:
         await ctx.send("Nothing is playing right now")
         return
     if len(queue['video_urls']) < 11:
         view = None
-    await ctx.send(view=view, embed=await queue_embed(queue['extracted_video_info'], queue["video_urls"]))
+    await ctx.send(
+        view=view,
+        embed=await queue_embed(
+        queue['extracted_video_info'],
+        queue["video_urls"],
+        time_string=time_string,
+        estimated_time=estimated_time
+        )
+        )
 
 
 @bot.hybrid_command(name="shuffle", with_app_command=True, description="shuffle the queue")
