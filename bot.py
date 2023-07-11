@@ -283,7 +283,6 @@ async def multiline_play(ctx, *, urls):
     if not ctx.author.voice:
         return await ctx.send('You are not connected to a voice channel')
     urls = urls.split("\n")
-    print(urls)
     queue["queries"] += urls[1:]
 
     await play(ctx, url=urls[0])
