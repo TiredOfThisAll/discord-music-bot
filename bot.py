@@ -37,7 +37,7 @@ async def on_ready():
         with open("guilds.txt") as guilds_file:
             guilds = guilds_file.read().split(";")[:-1]
         for guild in guilds:
-            queue_info[guild] = {"extracted_video_info": [], "video_urls": [], "repeat_current_song": False}
+            queue_info[guild] = {"extracted_video_info": [], "video_urls": [], "repeat_current_song": False, "queries": []}
     except FileNotFoundError:
         open("guilds.txt", "x")
     print(f'Bot connected as {bot.user}')
@@ -79,7 +79,7 @@ async def play(ctx, *, url, queue_imported=False):
     
     queue_size = len(queue["extracted_video_info"]) + len(queue["video_urls"])
 
-    await youtube_functions.search_youtube(url, queue_info[f"{ctx.guild.id}"])
+    await youtube_functions.search_youtube(url, queue)
 
     if not queue["extracted_video_info"] and queue["video_urls"]:
         await youtube_functions.extract_full_info(queue)
@@ -116,6 +116,14 @@ async def play(ctx, *, url, queue_imported=False):
         queue["extracted_video_info"][0]["start_time"] = time.time()
 
         while voice_client.is_playing() or voice_client.is_paused():
+            if queue["queries"]:
+                if not queue["video_urls"]:
+                    while not queue["video_urls"] and queue["queries"]:
+                        await youtube_functions.search_youtube(queue["queries"][0], queue)
+                        queue["queries"].pop(0)
+                else:
+                    await youtube_functions.search_youtube(queue["queries"][0], queue)
+                    queue["queries"].pop(0)
             if len(queue["extracted_video_info"]) < 2 and queue["video_urls"]:
                 await youtube_functions.extract_full_info(queue)
             await asyncio.sleep(1)
@@ -174,6 +182,11 @@ async def resume(ctx):
 @bot.hybrid_command(name="queue", description="show queue")
 async def queue(ctx):
     queue = queue_info[f"{ctx.guild.id}"]
+
+    if not queue['extracted_video_info'] and not queue['video_urls']:
+        await ctx.send("Nothing is playing right now")
+        return
+    
     view = PaginationButtons(queue)
 
     song_cur_time = timedelta(seconds=int(time.time() - queue["extracted_video_info"][0]["start_time"]))
@@ -186,9 +199,6 @@ async def queue(ctx):
     estimated_time += sum([x["duration"] for x in queue["video_urls"] if x["duration"]])
     estimated_time = timedelta(seconds=estimated_time)
 
-    if not queue['extracted_video_info'] and not queue['video_urls']:
-        await ctx.send("Nothing is playing right now")
-        return
     if len(queue['video_urls']) < 11:
         view = None
     await ctx.send(
@@ -264,6 +274,20 @@ async def repeat(ctx):
         return
     queue["repeat_current_song"] = True
     await ctx.send(f'{queue["extracted_video_info"][0]["title"]} is on repeat now')
+
+
+@bot.hybrid_command(name="multiline_play", description="Play some song using one command")
+async def multiline_play(ctx, *, urls):
+    global queue_info
+    queue = queue_info[f"{ctx.guild.id}"]
+    if not ctx.author.voice:
+        return await ctx.send('You are not connected to a voice channel')
+    urls = urls.split("\n")
+    print(urls)
+    queue["queries"] += urls[1:]
+
+    await play(ctx, url=urls[0])
+    
 
 
 # block all DMs

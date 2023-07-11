@@ -50,4 +50,4 @@ async def search_youtube(query, queue_info):
                 queue_info["video_urls"].append({"url": entry["url"], "title": entry["title"], "duration": entry["duration"]})
         else:
             queue_info["video_urls"].append({"url": info["url"], "title": info["title"], "duration": info["duration"]})
-        return queue_info
+    return queue_info
