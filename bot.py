@@ -7,6 +7,7 @@ from datetime import timedelta
 
 import youtube_functions
 from queue_embed import PaginationButtons, queue_embed
+from vk_music import parse_vk_url
 
 queue_info = {}
 current_number_of_songs = 0
@@ -65,14 +66,15 @@ async def sync(ctx):
 
 
 @bot.hybrid_command(name="play", description="play some stuff, you can use urls or search on youtube by video title")
-async def play(ctx, *, url, queue_imported=False):
+async def play(ctx, *, url, queue_imported=False, already_defered=False):
     global current_number_of_songs, queue_info
     new_queue_created = False
 
     queue = queue_info[f"{ctx.guild.id}"]
 
     # Begging discord to continue interaction of slash command if we are too slow
-    await ctx.defer()
+    if not already_defered:
+        await ctx.defer()
 
     if not ctx.author.voice:
         return await ctx.send('You are not connected to a voice channel')
@@ -81,12 +83,16 @@ async def play(ctx, *, url, queue_imported=False):
 
     await youtube_functions.search_youtube(url, queue)
 
+    if not queue["video_urls"]:
+        await ctx.send("No available videos with this url")
+        return
+
     if not queue["extracted_video_info"] and queue["video_urls"]:
         await youtube_functions.extract_full_info(queue)
         if queue["extracted_video_info"]:
             new_queue_created = True
         else:
-            ctx.send("No available videos with this url")
+            await ctx.send("No available videos with this url")
             return
 
     if queue["extracted_video_info"]:
@@ -105,32 +111,32 @@ async def play(ctx, *, url, queue_imported=False):
         if voice_client.is_playing():
             return
         
-    while queue["extracted_video_info"]:
-        response = f'Playing {queue["extracted_video_info"][0]["title"]}'
-        response = response if not queue_imported else "Queue was succesfully imported\n" + response
-        queue_imported = False
-        await ctx.send(response)
+        while queue["extracted_video_info"]:
+            response = f'Playing {queue["extracted_video_info"][0]["title"]}'
+            response = response if not queue_imported else "Queue was succesfully imported\n" + response
+            queue_imported = False
+            await ctx.send(response)
 
-        voice_client.play(discord.FFmpegPCMAudio(queue["extracted_video_info"][0]["link"], **ffmpeg_options))
+            voice_client.play(discord.FFmpegPCMAudio(queue["extracted_video_info"][0]["link"], **ffmpeg_options))
 
-        queue["extracted_video_info"][0]["start_time"] = time.time()
+            queue["extracted_video_info"][0]["start_time"] = time.time()
 
-        while voice_client.is_playing() or voice_client.is_paused():
-            if queue["queries"]:
-                if not queue["video_urls"]:
-                    while not queue["video_urls"] and queue["queries"]:
+            while voice_client.is_playing() or voice_client.is_paused():
+                if queue["queries"]:
+                    if not queue["video_urls"]:
+                        while not queue["video_urls"] and queue["queries"]:
+                            await youtube_functions.search_youtube(queue["queries"][0], queue)
+                            queue["queries"].pop(0)
+                    else:
                         await youtube_functions.search_youtube(queue["queries"][0], queue)
                         queue["queries"].pop(0)
-                else:
-                    await youtube_functions.search_youtube(queue["queries"][0], queue)
-                    queue["queries"].pop(0)
-            if len(queue["extracted_video_info"]) < 2 and queue["video_urls"]:
-                await youtube_functions.extract_full_info(queue)
-            await asyncio.sleep(1)
-        if queue["extracted_video_info"] and not queue["repeat_current_song"]:
-            queue["extracted_video_info"].pop(0)
+                if len(queue["extracted_video_info"]) < 2 and queue["video_urls"]:
+                    await youtube_functions.extract_full_info(queue)
+                await asyncio.sleep(1)
+            if queue["extracted_video_info"] and not queue["repeat_current_song"]:
+                queue["extracted_video_info"].pop(0)
 
-    await leave(voice_client)
+        await leave(voice_client)
 
 
 @bot.hybrid_command(name="skip", description="skip current song")
@@ -277,15 +283,38 @@ async def repeat(ctx):
 
 
 @bot.hybrid_command(name="multiline_play", description="Play some song using one command")
-async def multiline_play(ctx, *, urls):
+async def multiline_play(ctx, *, urls, already_defered=False, already_in_queries=False):
     global queue_info
+
+    if not already_defered:
+        await ctx.defer()
+
     queue = queue_info[f"{ctx.guild.id}"]
     if not ctx.author.voice:
         return await ctx.send('You are not connected to a voice channel')
     urls = urls.split("\n")
-    queue["queries"] += urls[1:]
+    if not already_in_queries:
+        queue["queries"] += urls[1:]
 
-    await play(ctx, url=urls[0])
+    await play(ctx, url=urls[0], already_defered=True)
+
+
+@bot.hybrid_command(name="vk_play", description="Play playlist from vk")
+async def vk_play(ctx, *, url):
+    global queue_info
+
+    await ctx.defer()
+
+    queue = queue_info[f"{ctx.guild.id}"]
+    if not ctx.author.voice:
+        return await ctx.send('You are not connected to a voice channel')
+    
+    parse_vk_url(url, queue)
+
+    if not queue["queries"]:
+        return await ctx.send("No available songs with this url")
+    
+    await multiline_play(ctx, urls="\n".join(queue["queries"]), already_defered=True, already_in_queries=True)
     
 
 

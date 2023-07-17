@@ -35,11 +35,15 @@ async def search_youtube(query, queue_info):
         except:
             # Search video on youtube by user query
             info = ydl.extract_info(f"ytsearch:{query}", download=False)
+            if not info:
+                return
             if info.get('_type') == 'playlist':
                 info = info['entries'][0]
         else:
             # Extract video info by url
             info = ydl.extract_info(query, download=False)
+            if not info:
+                return
             if info.get('_type') == 'playlist':
                 entries = [entry for entry in info.get('entries') if entry is not None]
             else:
