@@ -38,6 +38,8 @@ async def search_youtube(query, queue_info):
             if not info:
                 return
             if info.get('_type') == 'playlist':
+                if 'entries' not in info:
+                    return
                 info = info['entries'][0]
         else:
             # Extract video info by url
