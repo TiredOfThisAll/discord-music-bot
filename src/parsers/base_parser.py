@@ -1,5 +1,5 @@
 class BaseParser():
-    def __init__(self, name:str, domains:list):
+    def __init__(self, name: str, domains: list) -> None:
         # """Sets domains supported by parser
         #     @param domains: Supported domains (list)
         # """
@@ -10,18 +10,24 @@ class BaseParser():
         if not isinstance(domains, list):
             raise TypeError("domains type should be list")
         self.domains = domains
-    
+
     def __str__(self):
         return f"{self.name}: {self.domains}"
-    
+
     def __repr__(self):
         return self.__str__()
-    
-    async def search(self, query:str)->dict:
-        raise(NotImplementedError(f'Implement search in {self.__class__.__name__}'))
 
-    async def process_url(self, url:str)->list:
-        raise(NotImplementedError(f'Implement process_url in {self.__class__.__name__}'))
+    async def search(self, query: str) -> dict:
+        raise (NotImplementedError(
+            f'Implement search in {self.__class__.__name__}'
+        ))
 
-    async def get_song(self, song_info:dict)->dict:
-        raise(NotImplementedError(f'Implement get_song in {self.__class__.__name__}'))
+    async def process_url(self, url: str) -> list:
+        raise (NotImplementedError(
+            f'Implement process_url in {self.__class__.__name__}'
+        ))
+
+    async def get_song(self, song_info: dict) -> dict:
+        raise (NotImplementedError(
+            f'Implement get_song in {self.__class__.__name__}'
+        ))

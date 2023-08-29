@@ -21,7 +21,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 for parser in parsers:
     parsers_dict[parser.name] = parser
-        
+
 
 with open(os.path.join("configs", "config.json")) as file:
     CONFIG = json.loads(file.read())
@@ -30,6 +30,7 @@ if not CONFIG:
     raise ValueError("Incorrect config")
 
 ffmpeg_options = CONFIG["ffmpeg_options"]
+
 
 async def join(context):
     channel = context.author.voice.channel
@@ -55,7 +56,7 @@ async def on_ready():
             queue_info[guild] = {"song_info": [], "repeat_current_song": False}
     except FileNotFoundError:
         open("guilds.txt", "x")
-    
+
     print(f'Bot connected as {bot.user}')
 
 

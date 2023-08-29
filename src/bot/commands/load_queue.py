@@ -7,7 +7,10 @@ from bot.bot import queue_info, parsers_dict, CONFIG
 from .play import play
 
 
-@commands.hybrid_command(name="load_queue", description="Import queue from dump file")
+@commands.hybrid_command(
+    name="load_queue",
+    description="Import queue from dump file"
+)
 async def command_load_queue(ctx):
 
     await ctx.defer()
@@ -20,12 +23,18 @@ async def command_load_queue(ctx):
         def json_decode(dict):
             if "parser" in dict:
                 parser_name = dict["parser"]["name"]
-                dict["parser"] = parsers_dict[parser_name] if parser_name in parsers_dict else None
+                dict["parser"] = parsers_dict[parser_name] if parser_name in \
+                    parsers_dict else None
             return dict
-        
-        with open(os.path.join(CONFIG["queue_dumps_path"],f"{ctx.guild.id}_queue_dump.txt"), "r", encoding="utf-8") as queue_dump_file:
-            queue_dump = json.loads(queue_dump_file.read(), object_hook=json_decode)
-        
+
+        with open(os.path.join(
+            CONFIG["queue_dumps_path"],
+            f"{ctx.guild.id}_queue_dump.txt"),
+            "r",
+            encoding="utf-8"
+        ) as dump_file:
+            queue_dump = json.loads(dump_file.read(), object_hook=json_decode)
+
         if queue_dump:
             if "song_info" in queue_dump:
                 queue["song_info"] += queue_dump["song_info"]
@@ -48,6 +57,7 @@ async def command_load_queue(ctx):
 
     except FileNotFoundError:
         await ctx.send("No queue was saved for this server")
-    
+
+
 async def setup(bot):
     bot.add_command(command_load_queue)
