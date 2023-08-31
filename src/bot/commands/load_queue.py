@@ -3,7 +3,7 @@ from discord.ext import commands
 import os
 import json
 
-from bot.bot import queue_info, parsers_dict, CONFIG
+from bot.bot import queue_info, parsers_dict, config
 from .play import play
 
 
@@ -28,7 +28,7 @@ async def command_load_queue(ctx):
             return dict
 
         with open(os.path.join(
-            CONFIG["queue_dumps_path"],
+            config.QUEUE_DUMPS_PATH,
             f"{ctx.guild.id}_queue_dump.txt"),
             "r",
             encoding="utf-8"
