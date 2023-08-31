@@ -3,7 +3,7 @@ from discord.ext import commands
 import json
 import os
 
-from bot.bot import bot, queue_info, CONFIG
+from bot.bot import bot, queue_info, config
 
 
 @commands.hybrid_command(
@@ -20,7 +20,7 @@ async def command_save_queue(ctx):
 
     with open(
         os.path.join(
-            CONFIG["queue_dumps_path"],
+            config.QUEUE_DUMPS_PATH,
             f"{ctx.guild.id}_queue_dump.txt"
             ),
         "w+",
