@@ -2,7 +2,7 @@ import discord
 from math import ceil
 from datetime import datetime, timedelta
 
-from bot.bot import CONFIG
+from bot.bot import config
 
 
 class PaginationButtons(discord.ui.View):
@@ -86,7 +86,7 @@ async def queue_embed(queue: dict, page_number: int = 1) -> discord.Embed:
     estimated_time = timedelta(seconds=estimated_time)
 
     if not queue["song_info"][0]["info"]["params"]["image"]:
-        img = CONFIG["default_image"]
+        img = config.DEFAULT_IMAGE
     else:
         img = queue["song_info"][0]["info"]["params"]["image"]
     embed.set_thumbnail(url=img)
