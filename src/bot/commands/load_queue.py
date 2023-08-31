@@ -41,10 +41,10 @@ async def command_load_queue(ctx):
 
             if queue["song_info"]:
                 last_song = queue["song_info"].pop()
-                if "url" in last_song["info"]["params"]:
-                    query = last_song["info"]["params"]["url"]
-                else:
+                if last_song["parser"] == parsers_dict["VK"]:
                     query = last_song["info"]["name"]
+                else:
+                    query = last_song["info"]["params"]["url"]
                 await play(
                     ctx,
                     query=query,
