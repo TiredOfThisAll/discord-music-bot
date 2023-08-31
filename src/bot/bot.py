@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
 
-import json
 import os
 
 from query_processor.query_processor import QueryProcessor
 from parsers.yt import YT
 from parsers.vk import VK
+
+from services.configuration import Configuration
 
 parsers = (YT(), VK())
 query_processor = QueryProcessor(parsers)
@@ -22,14 +23,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 for parser in parsers:
     parsers_dict[parser.name] = parser
 
+config = Configuration.load()
 
-with open(os.path.join("configs", "config.json")) as file:
-    CONFIG = json.loads(file.read())
-
-if not CONFIG:
-    raise ValueError("Incorrect config")
-
-ffmpeg_options = CONFIG["ffmpeg_options"]
+ffmpeg_options = config.FFMPEG_OPTIONS
 
 
 async def join(context):
