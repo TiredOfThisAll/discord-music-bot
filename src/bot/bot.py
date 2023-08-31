@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 
 import os
+import logging
+import logging.handlers
 
 from query_processor.query_processor import QueryProcessor
 from parsers.yt import YT
@@ -71,5 +73,34 @@ async def globally_block_dms(ctx):
     return ctx.guild is not None
 
 
-def run_bot():
-    bot.run(CONFIG["token"])
+def run_bot() -> None:
+    # Init and setup file logger
+    logger = logging.getLogger('discord')
+    logger.setLevel(logging.DEBUG)
+    logging.getLogger('discord.http').setLevel(logging.INFO)
+
+    # Init file output handler
+    file_handler = logging.handlers.RotatingFileHandler(
+        filename=config.LOGS_PATH,
+        encoding='utf-8',
+        maxBytes=32 * 1024 * 1024,  # 32 MiB
+        backupCount=5,  # Rotate through 5 files
+    )
+    dt_fmt = '%Y-%m-%d %H:%M:%S'
+    formatter = logging.Formatter(
+        '[{asctime}] [{levelname:<8}] {name}: {message}',
+        dt_fmt,
+        style='{'
+    )
+    file_handler.setFormatter(formatter)
+
+    # Init console output handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    bot.run(config.TOKEN, log_handler=None)
