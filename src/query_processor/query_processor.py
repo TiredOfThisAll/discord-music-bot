@@ -54,7 +54,8 @@ class QueryProcessor():
             await asyncio.gather(*tasks)
 
 
-
+            if not search_results:
+                return
             parser, info, weight = max(search_results, key=lambda x: x[2])
             return [{"parser": parser, "info": info}]
 

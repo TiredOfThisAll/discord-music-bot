@@ -31,6 +31,7 @@ class YT(BaseParser):
         super().__init__(self.__class__.name, self.__class__.domains)
 
     async def search(self, query: str, callback: callable) -> dict|None:
+        song_info = None
         with youtube_dl.YoutubeDL(self.ydl_opts_flat) as ydl:
 
             loop = asyncio.get_running_loop()
@@ -46,22 +47,29 @@ class YT(BaseParser):
             if info.get('_type') == 'playlist':
                 if not info['entries']:
                     return
-                entry = info['entries'][0]
+                for entry in info['entries']:
+                    if entry['live_status'] == 'is_live':
+                        continue
+                    else:
+                        song_info = entry
+                        break
+        
+        if not song_info: return
 
-        params = {"url": entry["url"]}
+        params = {"url": song_info["url"]}
 
         if callback:
             callback({
-                "name": entry["title"],
-                "duration": int(entry["duration"]),
+                "name": song_info["title"],
+                "duration": int(song_info["duration"]),
                 "params": params
                 },
                 self
             )
         return {
-            "name": entry["title"],
-            "duration": int(entry["duration"]),
-            "params": params
+            "name": song_info["title"],
+            "duration": int(song_info["duration"]),
+            "params": song_info
         }
 
     async def process_url(self, url: str) -> list:
