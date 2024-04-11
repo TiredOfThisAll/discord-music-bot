@@ -36,7 +36,7 @@ class VK(BaseParser):
     def __init__(self):
         super().__init__(self.__class__.name, self.__class__.domains)
 
-    async def search(self, query: str, callback: callable) -> dict:
+    async def search(self, query: str, callback: callable) -> tuple|None:
         server = floor(random() * 29) + 100
 
         query = urllib.parse.quote(query, encoding="utf-8")
@@ -48,7 +48,7 @@ class VK(BaseParser):
 
                 data = await response.json()
 
-                if data["songs"]:
+                if data.get("songs"):
                     song = data["songs"][0]
 
                     image = song["vkAlbumPictureUrl"] \
@@ -76,6 +76,7 @@ class VK(BaseParser):
                         "duration": int(song["duration"]),
                         "params": params
                     }
+                
 
     async def process_url(self, url: str) -> list:
         # Retrieve playlist id to create valid link

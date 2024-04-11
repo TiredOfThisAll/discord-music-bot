@@ -25,6 +25,9 @@ class QueryProcessor():
                 parser = self.domains_dict[res.netloc]
                 info = await parser.process_url(query)
 
+                if not info:
+                    return
+
                 if not isinstance(info, list):
                     return [{"parser": parser, "info": info}]
 
@@ -36,7 +39,8 @@ class QueryProcessor():
         else:
             search_results = []
 
-            def parser_callback(data: dict, parser):
+            def parser_callback(data: dict, parser=None):
+                if not data or not parser: return
                 search_results.append((parser, data, self.compare(
                     query, data["name"]
                 )))
@@ -48,6 +52,8 @@ class QueryProcessor():
                 )))
 
             await asyncio.gather(*tasks)
+
+
 
             parser, info, weight = max(search_results, key=lambda x: x[2])
             return [{"parser": parser, "info": info}]

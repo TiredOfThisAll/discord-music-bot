@@ -30,7 +30,7 @@ class YT(BaseParser):
     def __init__(self):
         super().__init__(self.__class__.name, self.__class__.domains)
 
-    async def search(self, query: str, callback: callable) -> dict:
+    async def search(self, query: str, callback: callable) -> dict|None:
         with youtube_dl.YoutubeDL(self.ydl_opts_flat) as ydl:
 
             loop = asyncio.get_running_loop()
@@ -84,7 +84,7 @@ class YT(BaseParser):
                 }]
 
             songs = []
-            if info['entries']:
+            if info.get('entries'):
                 entries = info.get('entries')
                 entries = [entry for entry in entries if entry is not None]
                 for entry in entries:

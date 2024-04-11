@@ -61,7 +61,7 @@ async def play(
 
         await ctx.send(f'{len(queue["song_info"])} song(s) in queue')
 
-    while queue["song_info"]:
+    while queue["song_info"]:      
         curr_song = queue["song_info"][0]
         parser_name = curr_song["parser"].name
         response = f'{parser_name} Playing {curr_song["info"]["name"]}'
